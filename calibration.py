@@ -3,9 +3,9 @@ import numpy as np
 import random
 
 CHECKERBOARD_SIZE = (8, 6)
-SQUARE_SIZE = 0.115
+SQUARE_SIZE = 115
 MAX_ATTEMPTS = 200      # how many random frames to try
-REQUIRED_DETECTIONS = 25  # how many valid checkerboards
+REQUIRED_DETECTIONS = 20  # how many valid checkerboards
 
 def create_object_points():
     objp = np.zeros((CHECKERBOARD_SIZE[0] * CHECKERBOARD_SIZE[1], 3), np.float32)
@@ -57,7 +57,7 @@ def calibrate_camera_random(video_path):
 
             objpoints.append(objp)
             imgpoints.append(corners)
-            #print(f"Found checkerboard ({len(objpoints)}/{REQUIRED_DETECTIONS})")
+            print(f"Found checkerboard ({len(objpoints)}/{REQUIRED_DETECTIONS})")
 
         attempts += 1
 
@@ -166,25 +166,6 @@ def get_checkerboard_frame(video_path, frame_idx=100):
 
     return frame
 
-def visualize_world_origin(image, K, dist, rvec, tvec):
-    axis = np.float32([
-        [0, 0, 0],
-        [0.05, 0, 0],
-        [0, 0.05, 0],
-        [0, 0, -0.05]
-    ])
-
-    imgpts, _ = cv2.projectPoints(axis, rvec, tvec, K, dist)
-    imgpts = imgpts.reshape(-1, 2).astype(int)
-
-    origin = tuple(imgpts[0])
-    cv2.circle(image, origin, 10, (0, 0, 255), -1)
-
-    cv2.imshow("World Origin Check", image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-
 def save_camera_config(path, K, dist, R, t):
     fs = cv2.FileStorage(path, cv2.FILE_STORAGE_WRITE)
 
@@ -198,78 +179,82 @@ def save_camera_config(path, K, dist, R, t):
 if __name__ == "__main__":
 
     # -------- paths --------
-    cam_id = 1
-    cam_dir = f"data/cam{cam_id}"
+    # hier moet nog een for loop voor alle 4 de camera's, maar voor nu even 1 per keer
+    for cam_id in range(1, 5):
+        cam_dir = f"data/cam{cam_id}"
 
-    intrinsics_path = f"{cam_dir}/intrinsics.xml"
-    intrinsics_video = f"{cam_dir}/intrinsics.avi"
-    checkerboard_video = f"{cam_dir}/checkerboard.avi"
-    output_config = f"{cam_dir}/calibration.xml"
+        intrinsics_path = f"{cam_dir}/intrinsics.xml"
+        intrinsics_video = f"{cam_dir}/intrinsics.avi"
+        checkerboard_video = f"{cam_dir}/checkerboard.avi"
+        output_config = f"{cam_dir}/calibration.xml"
 
-    # -------- load intrinsics --------
-    K, dist = calibrate_camera_random(intrinsics_video)
+        # -------- load intrinsics --------
+        K, dist = calibrate_camera_random(intrinsics_video)
 
-    print("Camera matrix:\n", K)
-    print("Distortion coefficients:\n", dist)
+        print("Camera matrix:\n", K)
+        print("Distortion coefficients:\n", dist)
 
-    # -------- get checkerboard frame --------
-    cap = cv2.VideoCapture(checkerboard_video)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, 100)   # change if blurred
-    ret, frame = cap.read()
-    cap.release()
+        # -------- get checkerboard frame --------
+        cap = cv2.VideoCapture(checkerboard_video)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 100)   # change if blurred
+        ret, frame = cap.read()
+        cap.release()
 
-    if not ret:
-        raise RuntimeError("Could not read checkerboard frame")
+        if not ret:
+            raise RuntimeError("Could not read checkerboard frame")
 
-    # -------- manual corner selection --------
-    print("Click 4 corners: top-left top-right bottom-right bottom-left")
-    outer = get_manual_corners(frame)
-    img_corners = interpolate_corners(outer)
+        # -------- manual corner selection --------
+        print("Click 4 corners: top-left top-right bottom-right bottom-left")
+        outer = get_manual_corners(frame)
+        img_corners = interpolate_corners(outer)
 
-    # -------- object points --------
-    obj_points = create_object_points()
+        # -------- object points --------
+        obj_points = create_object_points()
 
-    # -------- solve PnP (extrinsics) --------
-    success, rvec, tvec = cv2.solvePnP(
-        obj_points,
-        img_corners,
-        K,
-        dist,
-        flags=cv2.SOLVEPNP_ITERATIVE
-    )
+        # -------- solve PnP (extrinsics) --------
+        success, rvec, tvec = cv2.solvePnP(
+            obj_points,
+            img_corners,
+            K,
+            dist,
+            flags=cv2.SOLVEPNP_ITERATIVE
+        )
 
-    if not success:
-        raise RuntimeError("solvePnP failed")
+        if not success:
+            raise RuntimeError("solvePnP failed")
 
-    R, _ = cv2.Rodrigues(rvec)
+        R, _ = cv2.Rodrigues(rvec)
 
-    print("Rotation matrix:\n", R)
-    print("Translation vector:\n", tvec)
+        print("Rotation matrix:\n", R)
+        print("Translation vector:\n", tvec)
 
-    # # -------- visualization check --------
-    # axis = np.float32([
-    #     [0, 0, 0],
-    #     [0.05, 0, 0],
-    #     [0, 0.05, 0],
-    #     [0, 0, -0.05]
-    # ])
+        # -------- visualization check --------
+        s = SQUARE_SIZE
+        axes = np.float32([[0,0,0],[3*s,0,0],[0,3*s,0],[0,0,-3*s]])
 
-    # imgpts, _ = cv2.projectPoints(axis, rvec, tvec, K, dist)
-    # imgpts = imgpts.reshape(-1, 2).astype(int)
+        imgpts, _ = cv2.projectPoints(axes, rvec, tvec, K, dist)
+        imgpts = imgpts.reshape(-1, 2).astype(int)
 
-    # cv2.circle(frame, tuple(imgpts[0]), 10, (0, 0, 255), -1)
-    # cv2.imshow("World origin check", frame)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
+            # Draw axes
+        o = tuple(imgpts[0].astype(int))
+        cv2.line(frame, o, tuple(imgpts[1].astype(int)), (0, 0, 255), 3)
+        cv2.line(frame, o, tuple(imgpts[2].astype(int)), (0, 255, 0), 3)
+        cv2.line(frame, o, tuple(imgpts[3].astype(int)), (255, 0, 0), 3)
 
-    # # -------- save final config --------
-    # fs = cv2.FileStorage(output_config, cv2.FILE_STORAGE_WRITE)
+        #cv2.circle(frame, tuple(imgpts[0]), 10, (0, 0, 255), -1)
+        cv2.imshow("World origin check", frame)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+        cv2.imwrite(f"{cam_dir}/extrinsics_check.png", frame)
 
-    # fs.write("camera_matrix", K)
-    # fs.write("distortion_coefficients", dist)
-    # fs.write("rotation_matrix", R)
-    # fs.write("translation_vector", tvec)
+        # -------- save final config --------
+        fs = cv2.FileStorage(output_config, cv2.FILE_STORAGE_WRITE)
 
-    # fs.release()
+        fs.write("camera_matrix", K)
+        fs.write("distortion_coefficients", dist)
+        fs.write("rotation_matrix", R)
+        fs.write("translation_vector", tvec)
 
-    # print(f"Calibration saved to {output_config}")
+        fs.release()
+
+        print(f"Calibration saved to {output_config}")
