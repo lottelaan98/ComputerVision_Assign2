@@ -29,15 +29,17 @@ x_range = np.arange(-1.0, 1.0, 0.02)
 y_range = np.arange(-1.0, 1.0, 0.02)
 z_range = np.arange(0.0, 2.0, 0.02)
 voxels = np.array(np.meshgrid(x_range, y_range, z_range)).T.reshape(-1,3)
+print(len(voxels))
+
 
 if __name__ == "__main__":
 
-    K, d, r, t = load_camera_parameters("data/cam1/config.xml")
+    K, d, rvec, tvec = load_camera_parameters("data/cam1/config.xml")
 
     projected_points = project_voxels(
         voxel_points=np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32),
-        rvec=cv2.Rodrigues(r)[0],
-        tvec=t,
+        rvec=cv2.Rodrigues(rvec)[0],
+        tvec=tvec,
         K=K,
         dist=d
     )
@@ -46,5 +48,5 @@ if __name__ == "__main__":
 
     print("Camera matrix:\n", K)
     print("Distortion:\n", d)
-    print("Rotation:\n", r)
-    print("Translation:\n", t)
+    print("Rotation:\n", rvec)
+    print("Translation:\n", tvec)
