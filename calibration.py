@@ -186,7 +186,7 @@ if __name__ == "__main__":
         intrinsics_path = f"{cam_dir}/intrinsics.xml"
         intrinsics_video = f"{cam_dir}/intrinsics.avi"
         checkerboard_video = f"{cam_dir}/checkerboard.avi"
-        output_config = f"{cam_dir}/calibration.xml"
+        output_config = f"{cam_dir}/config.xml"
 
         # -------- load intrinsics --------
         K, dist = calibrate_camera_random(intrinsics_video)
