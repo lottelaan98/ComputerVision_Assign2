@@ -1,0 +1,5 @@
+# Ignore generated foreground masks
+data/*/foreground_masks/frame_*.png
+
+# Or ignore all PNG masks in foreground folders
+data/*/foreground_masks/*.png

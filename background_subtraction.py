@@ -2,12 +2,6 @@ import cv2
 import numpy as np
 import os
 
-
-BACKGROUND_VIDEO = "data/cam1/background.avi"
-INPUT_VIDEO = "data/cam1/video.avi"
-OUTPUT_DIR = "data/cam1/foreground_masks"
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-
 H_THRESH = 15      
 S_THRESH = 30      
 V_THRESH = 30      
@@ -46,6 +40,8 @@ def create_background_average(video_path, num_frames=50):
 def background_subtraction(frame_hsv, bg_hsv):
     # absolute difference
     diff = cv2.absdiff(frame_hsv, bg_hsv)
+    #h_diff = np.minimum(abs(frame_hsv[:,:,0] - bg_hsv[:,:,0]), 180 - abs(frame_hsv[:,:,0] - bg_hsv[:,:,0]))
+
 
     h_diff, s_diff, v_diff = cv2.split(diff)
 
@@ -69,7 +65,7 @@ def process_video(input_video, bg_model, output_dir):
         frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         fg_mask = background_subtraction(frame_hsv, bg_model)
 
-        # optional: morphological cleanup
+        #morph and dilate for 2.4
         fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
         fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_DILATE, np.ones((3, 3), np.uint8))
 
@@ -86,9 +82,14 @@ def process_video(input_video, bg_model, output_dir):
 
 if __name__ == "__main__":
     print("Creating background model...")
-    bg_model = create_background_average(BACKGROUND_VIDEO, NUM_BG_FRAMES)
-    cv2.imwrite(os.path.join(OUTPUT_DIR, "background_model.png"), bg_model)
-    print("Background model saved.")
+    for cam in range(1, 5):
+        BACKGROUND_VIDEO = f"data/cam{cam}/background.avi"
+        INPUT_VIDEO = f"data/cam{cam}/video.avi"
+        OUTPUT_DIR = f"data/cam{cam}/foreground_masks"
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+        bg_model = create_background_average(BACKGROUND_VIDEO, NUM_BG_FRAMES)
+        cv2.imwrite(os.path.join(OUTPUT_DIR, "background_model.png"), bg_model)
+        print(f"Camera {cam}: Background model saved.")
 
-    print("Processing input video...")
-    process_video(INPUT_VIDEO, bg_model, OUTPUT_DIR)
+        print(f"Camera {cam}: Processing input video...")
+        process_video(INPUT_VIDEO, bg_model, OUTPUT_DIR)
