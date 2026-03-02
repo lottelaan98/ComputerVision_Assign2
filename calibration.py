@@ -2,42 +2,58 @@ import cv2
 import numpy as np
 import random
 
-CHECKERBOARD_SIZE = (8, 6)
-SQUARE_SIZE = 115
+CHECKERBOARD_SIZE = (8, 6)  # number of inner corners (columns = 8, rows=6)
+SQUARE_SIZE = 115   # real world square size in mm
 MAX_ATTEMPTS = 200      # how many random frames to try
 REQUIRED_DETECTIONS = 20  # how many valid checkerboards
 
 def create_object_points():
+    # creates an array of shape (48, 3) filled with zeros
     objp = np.zeros((CHECKERBOARD_SIZE[0] * CHECKERBOARD_SIZE[1], 3), np.float32)
+    # np.mgrid build a grid of coordinates, and reshapes into a list of (x,y) points
     objp[:, :2] = np.mgrid[0:CHECKERBOARD_SIZE[0],
                            0:CHECKERBOARD_SIZE[1]].T.reshape(-1, 2)
+    # these fill the first two columns (X,Y). Z stays 0
     objp *= SQUARE_SIZE
+    # returns the 3D corner coordinates on the board plane.
     return objp
 
 def calibrate_camera_random(video_path):
+    # opens the video intrinsics.avi
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise IOError("Cannot open video")
 
+    # reads how many frames exist in the video
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print("Total frames:", total_frames)
 
+    # objp = 3D points for one chessboard view
     objp = create_object_points()
+    # ojbpoints = list of 3D points. One set per detected frame.
     objpoints = []
+    # imgpoints = list of detected 2D image corners. One set per detected frame.
     imgpoints = []
 
+    # counts for random tries
     attempts = 0
 
+    # loop: try random frames until enough boards detected or max attempts reached
     while attempts < MAX_ATTEMPTS and len(objpoints) < REQUIRED_DETECTIONS:
+        # pick a random frame index and jump to it
         frame_idx = random.randint(0, total_frames - 1)
         cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
 
+        # read the frame. If failed, skip.
         ret, frame = cap.read()
         if not ret:
             attempts += 1
             continue
 
+        # convert to grayscale, cause chessboard detection works on gray.
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        # try to find 8x6 corner pattern
+        # flags improve detection under different lighting 
         found, corners = cv2.findChessboardCorners(
             gray,
             CHECKERBOARD_SIZE,
@@ -55,6 +71,7 @@ def calibrate_camera_random(video_path):
                 criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
             )
 
+            # store 3D-2D correspondences for calibration
             objpoints.append(objp)
             imgpoints.append(corners)
             print(f"Found checkerboard ({len(objpoints)}/{REQUIRED_DETECTIONS})")
@@ -63,13 +80,18 @@ def calibrate_camera_random(video_path):
 
     cap.release()
 
+    # need at least a few views to calibrate
     if len(objpoints) < 5:
         raise RuntimeError("Not enough checkerboard detections for calibration")
 
+    # mtx is intrinsic camera matrix K
+    # dist is distortion coefficients
+    # rvecs, tvecs is pose of board in each used frame
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(
         objpoints, imgpoints, gray.shape[::-1], None, None
     )
 
+    # return intrinsics only
     return mtx, dist
 
 def mouse_callback(event, x, y, flags, param):
