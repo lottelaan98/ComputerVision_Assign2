@@ -7,15 +7,34 @@ def load_camera_parameters(xml_path):
 
     K = fs.getNode("camera_matrix").mat()
     d = fs.getNode("distortion_coefficients").mat()
-    r = fs.getNode("rotation_matrix").mat()
+    R = fs.getNode("rotation_matrix").mat()
     t = fs.getNode("translation_vector").mat()
+    t = t / 1000.0
+
     fs.release()
-    return K, d, r, t
+    rvec, _ = cv2.Rodrigues(R)
+    return K, d, rvec, t
+
+    # # Convert mm → meters
+    # t = t / 1000.0
+
+    # # Invert extrinsics
+    # R_inv = R.T
+    # t_inv = -R_inv @ t
+
+    # rvec, _ = cv2.Rodrigues(R_inv)
+
+    # return K, d, rvec, t_inv
 
 def create_voxel_grid():
+    #misschien aanpassen?
     x_range = np.arange(-1.0, 1.0, 0.03)
     y_range = np.arange(-1.0, 1.0, 0.03)
     z_range = np.arange(0.0, 2.0, 0.03)
+
+    # x_range = np.arange(-1.2, 1.2, 0.03)
+    # y_range = np.arange(-1.2, 1.2, 0.03)
+    # z_range = np.arange(-0.2, 2.2, 0.03)
 
     voxels = np.array(np.meshgrid(x_range, y_range, z_range)).T.reshape(-1, 3)
     return voxels.astype(np.float32)
@@ -80,7 +99,8 @@ def load_masks_for_frame(frame_name):
     for cam_id in range(1, 5):
         path = f"data/cam{cam_id}/foreground_masks/{frame_name}"
         mask = cv2.imread(path, 0)
-        print(mask.shape)
+        #print(mask.shape)
+        
 
         if mask is None:
             raise Exception(f"Missing {frame_name} in cam{cam_id}")
@@ -95,35 +115,60 @@ def reconstruct_voxels(foreground_masks, lookup_tables, voxels):
     """
 
     voxel_on = np.ones(len(voxels), dtype=bool)
-
+    
     for cam_id in range(1, 5):
         pixels = lookup_tables[cam_id]["pixels"]
         valid = lookup_tables[cam_id]["valid"]
         mask = foreground_masks[cam_id]
+        #print(np.unique(mask))
 
         #print(pixels.shape, valid.shape, mask.shape)
+        #print(f"Cam{cam_id} valid projections:", np.sum(valid))
+        
 
         cam_visible = np.zeros(len(voxels), dtype=bool)
+
+        #print(f"Cam{cam_id} foreground hits:", np.sum(cam_visible))
 
         valid_indices = np.where(valid)[0]
         px = pixels[valid_indices]
 
-        cam_visible[valid_indices] = (
-            mask[px[:, 1], px[:, 0]] == 255
-        )
+        #cam_visible[valid_indices] = (mask[px[:, 1], px[:, 0]] == 255)
+        cam_visible[valid_indices] = mask[px[:, 1], px[:, 0]] > 0
 
         voxel_on &= cam_visible
+        #voxel_on = cam_visible
+        # break
 
     return voxels[voxel_on]
 
 # def remove_floor_voxels(voxels, threshold=0.05):
 #     return voxels[voxels[:, 2] > threshold]
 
+def world_to_engine(voxels):
+    engine_voxels = []
+
+    for x, y, z in voxels:
+
+        vx = int((x + 1) * 64)
+        vz = int((y + 1) * 64)
+        vy = int(z * 32)
+
+        if 0 <= vx < 128 and 0 <= vy < 64 and 0 <= vz < 128:
+            engine_voxels.append([vx, vy, vz])
+
+    return engine_voxels
+
+
+
 if __name__ == "__main__":
 
     voxels = create_voxel_grid()
     lookup_tables = build_all_lookup_tables(voxels)
-
+    # for cam_id in range(1, 5):
+    #     valid = lookup_tables[cam_id]["valid"]
+    #     print(f"Cam{cam_id} valid projections:", np.sum(valid))
+    
     mask_folder = "data/cam1/foreground_masks"
     frame_files = sorted([f for f in os.listdir(mask_folder) if f.startswith("frame_") and f.endswith(".png")])
 
@@ -137,3 +182,4 @@ if __name__ == "__main__":
         # active_voxels = remove_floor_voxels(active_voxels)
 
         print(frame_name, "active voxels:", len(active_voxels))
+        engine_voxels = world_to_engine(active_voxels)

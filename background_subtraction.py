@@ -42,7 +42,6 @@ def background_subtraction(frame_hsv, bg_hsv):
     diff = cv2.absdiff(frame_hsv, bg_hsv)
     #h_diff = np.minimum(abs(frame_hsv[:,:,0] - bg_hsv[:,:,0]), 180 - abs(frame_hsv[:,:,0] - bg_hsv[:,:,0]))
 
-
     h_diff, s_diff, v_diff = cv2.split(diff)
 
     # threshold each channel
