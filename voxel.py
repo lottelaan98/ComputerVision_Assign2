@@ -75,6 +75,20 @@ def build_all_lookup_tables(voxels):
 
     return lookup_tables
 
+def load_masks_for_frame(frame_name):
+    masks = {}
+    for cam_id in range(1, 5):
+        path = f"data/cam{cam_id}/foreground_masks/{frame_name}"
+        mask = cv2.imread(path, 0)
+        print(mask.shape)
+
+        if mask is None:
+            raise Exception(f"Missing {frame_name} in cam{cam_id}")
+
+        masks[cam_id] = mask
+
+    return masks
+
 def reconstruct_voxels(foreground_masks, lookup_tables, voxels):
     """
     foreground_masks: dict {1: mask1, 2: mask2, ...}
@@ -86,6 +100,8 @@ def reconstruct_voxels(foreground_masks, lookup_tables, voxels):
         pixels = lookup_tables[cam_id]["pixels"]
         valid = lookup_tables[cam_id]["valid"]
         mask = foreground_masks[cam_id]
+
+        #print(pixels.shape, valid.shape, mask.shape)
 
         cam_visible = np.zeros(len(voxels), dtype=bool)
 
@@ -100,33 +116,24 @@ def reconstruct_voxels(foreground_masks, lookup_tables, voxels):
 
     return voxels[voxel_on]
 
-def load_masks_for_frame(frame_name):
-    masks = {}
-
-    for cam_id in range(1, 5):
-        path = f"data/cam{cam_id}/foreground_masks/{frame_name}"
-        mask = cv2.imread(path, 0)
-
-        if mask is None:
-            raise Exception(f"Missing {frame_name} in cam{cam_id}")
-
-        masks[cam_id] = mask
-
-    return masks
+# def remove_floor_voxels(voxels, threshold=0.05):
+#     return voxels[voxels[:, 2] > threshold]
 
 if __name__ == "__main__":
 
     voxels = create_voxel_grid()
     lookup_tables = build_all_lookup_tables(voxels)
 
-    cam1_files = sorted([
-        f for f in os.listdir("data/cam1/foreground_masks")
-        if f.startswith("frame_") and f.endswith(".png")
-    ])
+    mask_folder = "data/cam1/foreground_masks"
+    frame_files = sorted([f for f in os.listdir(mask_folder) if f.startswith("frame_") and f.endswith(".png")])
 
-    for frame_name in cam1_files:
+    for frame_name in frame_files:
 
         masks = load_masks_for_frame(frame_name)
-        active_voxels = reconstruct_voxels(voxels, lookup_tables, masks)
 
-        print(frame_name, "-> active voxels:", len(active_voxels))
+        active_voxels = reconstruct_voxels(masks, lookup_tables, voxels)
+
+        # Cleanup
+        # active_voxels = remove_floor_voxels(active_voxels)
+
+        print(frame_name, "active voxels:", len(active_voxels))
