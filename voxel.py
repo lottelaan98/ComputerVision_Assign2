@@ -4,14 +4,13 @@ import os
 
 def load_camera_parameters(xml_path):
     fs = cv2.FileStorage(xml_path, cv2.FILE_STORAGE_READ)
-
     K = fs.getNode("camera_matrix").mat()
     d = fs.getNode("distortion_coefficients").mat()
     R = fs.getNode("rotation_matrix").mat()
     t = fs.getNode("translation_vector").mat()
-    t = t / 1000.0
-
+    t = t/1000
     fs.release()
+
     rvec, _ = cv2.Rodrigues(R)
     return K, d, rvec, t
 
@@ -26,12 +25,12 @@ def load_camera_parameters(xml_path):
 
     # return K, d, rvec, t_inv
 
-def create_voxel_grid(x_range=(-3.5,3.5), y_range=(0,2), z_range=(-3.5,3.5), step=0.03):
+def create_voxel_grid(x_range=(-3.5, 3.5), y_range=(0, 2), z_range=(-3.5, 3.5), step=0.03):
     x = np.arange(x_range[0], x_range[1], step)
     y = np.arange(y_range[0], y_range[1], step)
     z = np.arange(z_range[0], z_range[1], step)
-
-    voxels = np.array(np.meshgrid(x, y, z)).T.reshape(-1, 3)
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
+    voxels = np.stack([X, Y, Z], axis=-1).reshape(-1, 3)
     return voxels.astype(np.float32)
 
 def build_lookup_table(voxels, K, d, rvec, tvec, image_shape):
@@ -141,48 +140,31 @@ def reconstruct_voxels(foreground_masks, lookup_tables, voxels):
 # def remove_floor_voxels(voxels, threshold=0.05):
 #     return voxels[voxels[:, 2] > threshold]
 
-# def world_to_engine(voxels):
-#     engine_voxels = []
-
-#     for x, y, z in voxels:
-
-#         vx = int((x + 1) * 64)
-#         vz = int((y + 1) * 64)
-#         vy = int(z * 32)
-
-#         if 0 <= vx < 128 and 0 <= vy < 64 and 0 <= vz < 128:
-#             engine_voxels.append([vx, vy, vz])
-
-#     return engine_voxels
-
-
-def world_to_engine(voxels, x_range=(-1, 1), y_range=(0, 2), z_range=(-1, 1)):
+def world_to_engine(voxels, x_range=(-3.5,3.5), y_range=(0,2), z_range=(-3.5,3.5)):
     engine_voxels = []
-
     x_min, x_max = x_range
     y_min, y_max = y_range
     z_min, z_max = z_range
 
-    # Scale to voxel grid
     for x, y, z in voxels:
-        vx = int((x - x_min) / (x_max - x_min) * 127)  # 0–127
-        vy = int((y - y_min) / (y_max - y_min) * 63)   # 0–63
-        vz = int((z - z_min) / (z_max - z_min) * 127)  # 0–127
-
+        vx = int((x - x_min) / (x_max - x_min) * 127)
+        vy = int((y - y_min) / (y_max - y_min) * 63)
+        vz = int((z - z_min) / (z_max - z_min) * 127)
         if 0 <= vx < 128 and 0 <= vy < 64 and 0 <= vz < 128:
             engine_voxels.append([vx, vy, vz])
-
     return engine_voxels
 
 if __name__ == "__main__":
 
     voxels = create_voxel_grid()
     lookup_tables = build_all_lookup_tables(voxels)
-    # for cam_id in range(1, 5):
-    #     valid = lookup_tables[cam_id]["valid"]
-    #     print(f"Cam{cam_id} valid projections:", np.sum(valid))
+    for cam_id in range(1, 5):
+        valid = lookup_tables[cam_id]["valid"]
+        print(f"Cam{cam_id} valid projections:", np.sum(valid))
+
 
     
+    #can change the folder name if needed for different versions of masks
     mask_folder = "data/cam1/foreground_masks_auto"
     frame_files = sorted([f for f in os.listdir(mask_folder) if f.startswith("frame_") and f.endswith(".png")])
 
