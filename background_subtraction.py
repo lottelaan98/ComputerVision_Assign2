@@ -68,8 +68,23 @@ def process_video(input_video, bg_model, output_dir):
         fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
         fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_DILATE, np.ones((3, 3), np.uint8))
 
+        # Find contours 
+        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Create empty mask
+        largest_blob_mask = np.zeros_like(fg_mask)
+
+        if contours:
+            # Find largest contour by area
+            largest_contour = max(contours, key=cv2.contourArea)
+
+            # Draw it filled into new mask
+            cv2.drawContours(largest_blob_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+
+        # Save only largest blob mask
         out_path = os.path.join(output_dir, f"frame_{frame_idx:04d}.png")
-        cv2.imwrite(out_path, fg_mask)
+        cv2.imwrite(out_path, largest_blob_mask)
+
 
         frame_idx += 1
         if frame_idx % 50 == 0:

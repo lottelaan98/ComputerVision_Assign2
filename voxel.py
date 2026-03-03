@@ -159,8 +159,6 @@ def world_to_engine(voxels):
 
     return engine_voxels
 
-
-
 if __name__ == "__main__":
 
     voxels = create_voxel_grid()
@@ -182,4 +180,4 @@ if __name__ == "__main__":
         # active_voxels = remove_floor_voxels(active_voxels)
 
         print(frame_name, "active voxels:", len(active_voxels))
-        engine_voxels = world_to_engine(active_voxels)
+        #engine_voxels = world_to_engine(active_voxels)
