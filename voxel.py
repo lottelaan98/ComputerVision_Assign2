@@ -8,7 +8,7 @@ def load_camera_parameters(xml_path):
     d = fs.getNode("distortion_coefficients").mat()
     R = fs.getNode("rotation_matrix").mat()
     t = fs.getNode("translation_vector").mat()
-    t = t/1000
+    #t = t/1000
     fs.release()
 
     rvec, _ = cv2.Rodrigues(R)
