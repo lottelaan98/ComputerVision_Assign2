@@ -9,7 +9,7 @@ from typing import Dict, Tuple, List
 # ============================================================
 
 def load_camera_parameters(xml_path: str):
-    """Load K, dist, rvec, tvec, and also rotation matrix R (for depth if needed later)."""
+    """Load K, dist, rvec, tvec, and also rotation matrix R."""
     fs = cv2.FileStorage(xml_path, cv2.FILE_STORAGE_READ)
     K = fs.getNode("camera_matrix").mat()
     d = fs.getNode("distortion_coefficients").mat()
@@ -45,7 +45,6 @@ def create_voxel_grid(spec: GridSpec) -> np.ndarray:
 
 # ============================================================
 # Inverse Look-up table (pixel -> list of voxels)
-# (This is exactly the "iterate over pixels in LUT" approach.)
 # ============================================================
 
 @dataclass
@@ -95,7 +94,7 @@ def build_inverse_lut_for_cam(voxels: np.ndarray, cam_id: int) -> InverseLUT:
     pid_sorted = pid[order]
     voxel_idx_sorted = voxel_idx[order]
 
-    # Unique pid + offsets (CSR-like)
+    # Unique pid + offsets 
     unique_pid, start_idx = np.unique(pid_sorted, return_index=True)
     offsets = np.empty(len(unique_pid) + 1, dtype=np.int64)
     offsets[:-1] = start_idx
@@ -132,8 +131,7 @@ def load_mask(cam_id: int, frame_name: str, masks_folder="foreground_masks") -> 
 
 def pid_ranges_for_pixels(inv: InverseLUT, changed_pid: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
-    For a list of pixel-ids (changed_pid), find for each pid its [start,end) range
-    in inv.voxel_idx_sorted using binary search on inv.unique_pid.
+    For a list of pixel-ids, find for each pid its [start,end) range
 
     Returns arrays start, end aligned with changed_pid after filtering only existing pid.
     """
@@ -155,7 +153,7 @@ def incremental_reconstruction_sequence(
 ) -> Dict[str, np.ndarray]:
     """
     Maintains per-camera visibility and a global count.
-    Only updates voxels for pixels that changed (XOR) between frames. :contentReference[oaicite:3]{index=3}
+    Only updates voxels for pixels that changed between frames.
 
     Returns: dict frame_name -> active voxel indices (count == 4)
     """
@@ -164,7 +162,7 @@ def incremental_reconstruction_sequence(
 
     # Visible flags per cam for all voxels (boolean)
     visible = {cam_id: np.zeros(num_voxels, dtype=bool) for cam_id in cam_ids}
-    # Count of how many cameras see each voxel as foreground (0..C)
+    # Count of how many cameras see each voxel as foreground
     count = np.zeros(num_voxels, dtype=np.uint8)
 
     prev_masks = {cam_id: None for cam_id in cam_ids}
@@ -180,7 +178,6 @@ def incremental_reconstruction_sequence(
                 raise RuntimeError(f"Mask size mismatch cam{cam_id}: {mask.shape} vs {(inv.h, inv.w)}")
 
             if do_refresh or prev_masks[cam_id] is None:
-                # Full update for this camera: compute visibility for ALL pixels in LUT.
                 # We still do it pixel-driven (fast), but it's a refresh.
                 mask_flat = (mask.reshape(-1) > 0)
 
@@ -203,7 +200,6 @@ def incremental_reconstruction_sequence(
                 count[visible[cam_id]] += 1
 
             else:
-                # Incremental update: only changed pixels (XOR) :contentReference[oaicite:4]{index=4}
                 prev = prev_masks[cam_id]
                 changed = cv2.bitwise_xor(prev, mask)
                 ys, xs = np.nonzero(changed)
@@ -212,7 +208,7 @@ def incremental_reconstruction_sequence(
 
                     ok, start, end = pid_ranges_for_pixels(inv, changed_pid)
                     changed_pid = changed_pid[ok]
-                    start = start  # already filtered by ok inside pid_ranges
+                    start = start 
                     end = end
 
                     mask_flat = mask.reshape(-1)
@@ -249,11 +245,11 @@ if __name__ == "__main__":
     spec = GridSpec(step=0.03)
     voxels = create_voxel_grid(spec)
 
-    # 1) Build inverse LUT once (pixel -> voxels), per camera :contentReference[oaicite:5]{index=5}
+    # 1) Build inverse LUT once (pixel -> voxels), per camera
     inv_luts = build_all_inverse_luts(voxels, cam_ids=(1, 2, 3, 4))
 
-    # 2) Collect frame names from one camera’s masks folder (must exist for all cams)
-    masks_folder = "foreground_masks"  # change if you used another folder name
+    # 2) Collect frame names from one camera’s masks folder
+    masks_folder = "foreground_masks"  
     mask_dir = f"data/cam1/{masks_folder}"
     frame_files = sorted([f for f in os.listdir(mask_dir) if f.startswith("frame_") and f.endswith(".png")])
 
