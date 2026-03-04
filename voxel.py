@@ -82,7 +82,7 @@ def load_masks_for_frame(frame_name):
     masks = {}
     for cam_id in range(1, 5):
         #can change the folder name if needed for different versions of masks
-        path = f"data/cam{cam_id}/foreground_masks_auto/{frame_name}"
+        path = f"data/cam{cam_id}/foreground_masks/{frame_name}"
         mask = cv2.imread(path, 0)
         #print(mask.shape)
         
@@ -141,7 +141,7 @@ if __name__ == "__main__":
         print(f"Cam{cam_id} valid projections:", np.sum(valid))
     
     #can change the folder name if needed for different versions of masks
-    mask_folder = "data/cam1/foreground_masks_auto"
+    mask_folder = "data/cam1/foreground_masks"
     frame_files = sorted([f for f in os.listdir(mask_folder) if f.startswith("frame_") and f.endswith(".png")])
 
     for frame_name in frame_files:

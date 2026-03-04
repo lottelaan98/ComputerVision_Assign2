@@ -1,20 +1,12 @@
 """
 CHOICE 3 — Coloring the voxel model with occlusion reasoning (depth-aware)
 
-Goal:
-- For each reconstructed voxel (from silhouettes), assign an RGB color.
-- IMPORTANT: only use a camera's color if the voxel is VISIBLE to that camera
-  (i.e., not occluded by another voxel along the same camera ray / same pixel).
-
-Key idea (per camera):
-1) Project all ACTIVE voxels -> pixel coordinates (u,v)
+1) Project all active voxels -> pixel coordinates (u,v)
 2) Compute each voxel's depth in that camera: Zc from camera coordinates Xc = R*X + t
 3) For each pixel, keep ONLY the voxel with the smallest depth (closest to camera).
    That voxel is the visible surface point at that pixel for that camera.
 4) Sample the camera frame color at (u,v) and accumulate into that voxel's color.
 5) Combine colors across cameras (average over cameras where voxel is visible).
-
-This uses NO built-in background subtraction. It only relies on your calibration + silhouettes.
 """
 
 import os
@@ -328,6 +320,3 @@ if __name__ == "__main__":
                 vis[v, u] = colors_rgb[i]
 
         cv2.imwrite(f"data/choice3_debug/colored_debug_{frame_idx:04d}.png", vis)
-
-        # At this point you would pass `engine_voxels_colored`
-        # to your visualization pipeline (depends on your framework).
