@@ -56,37 +56,60 @@ def process_video(input_video, bg_model, output_dir):
     cap = cv2.VideoCapture(input_video)
     frame_idx = 0
 
+    os.makedirs(output_dir, exist_ok=True)
+
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
+        # Convert frame to HSV
         frame_hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+        # Background subtraction
         fg_mask = background_subtraction(frame_hsv, bg_model)
 
-        #morph and dilate for 2.4
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
-        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_DILATE, np.ones((3, 3), np.uint8))
+        # ---- Morphological operations ----
+        kernel = np.ones((5, 5), np.uint8)
 
-        # Find contours 
-        contours, _ = cv2.findContours(fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        # Remove noise
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_OPEN, kernel)
 
-        # Create empty mask
+        # Connect thin structures (chair legs)
+        fg_mask = cv2.morphologyEx(fg_mask, cv2.MORPH_CLOSE, kernel)
+
+        # Slight dilation to ensure connectivity
+        fg_mask = cv2.dilate(fg_mask, kernel, iterations=1)
+
+        # ---- Connected components ----
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(fg_mask)
+
         largest_blob_mask = np.zeros_like(fg_mask)
 
-        if contours:
-            # Find largest contour by area
-            largest_contour = max(contours, key=cv2.contourArea)
+        if num_labels > 1:
+            # Ignore label 0 (background)
+            largest_label = 1 + np.argmax(stats[1:, cv2.CC_STAT_AREA])
 
-            # Draw it filled into new mask
-            cv2.drawContours(largest_blob_mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+            # Mask of largest component
+            largest_component = (labels == largest_label).astype(np.uint8) * 255
 
-        # Save only largest blob mask
+            # Dilate largest component slightly
+            expand_kernel = np.ones((7, 7), np.uint8)
+            expanded = cv2.dilate(largest_component, expand_kernel)
+
+            # Keep components touching the expanded region
+            for label in range(1, num_labels):
+                component = (labels == label).astype(np.uint8) * 255
+
+                if np.any(cv2.bitwise_and(component, expanded)):
+                    largest_blob_mask = cv2.bitwise_or(largest_blob_mask, component)
+
+        # ---- Save result ----
         out_path = os.path.join(output_dir, f"frame_{frame_idx:04d}.png")
         cv2.imwrite(out_path, largest_blob_mask)
 
-
         frame_idx += 1
+
         if frame_idx % 50 == 0:
             print(f"Processed {frame_idx} frames...")
 

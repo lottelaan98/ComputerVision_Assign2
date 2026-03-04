@@ -8,22 +8,12 @@ def load_camera_parameters(xml_path):
     d = fs.getNode("distortion_coefficients").mat()
     R = fs.getNode("rotation_matrix").mat()
     t = fs.getNode("translation_vector").mat()
-    #t = t/1000
+    t = t/1000
     fs.release()
 
     rvec, _ = cv2.Rodrigues(R)
     return K, d, rvec, t
 
-    # # Convert mm → meters
-    # t = t / 1000.0
-
-    # # Invert extrinsics
-    # R_inv = R.T
-    # t_inv = -R_inv @ t
-
-    # rvec, _ = cv2.Rodrigues(R_inv)
-
-    # return K, d, rvec, t_inv
 
 def create_voxel_grid(x_range=(-3.5, 3.5), y_range=(0, 2), z_range=(-3.5, 3.5), step=0.03):
     x = np.arange(x_range[0], x_range[1], step)
@@ -105,35 +95,23 @@ def load_masks_for_frame(frame_name):
     return masks
 
 def reconstruct_voxels(foreground_masks, lookup_tables, voxels):
-    """
-    foreground_masks: dict {1: mask1, 2: mask2, ...}
-    """
 
-    voxel_on = np.ones(len(voxels), dtype=bool)
-    
+    votes = np.zeros(len(voxels), dtype=int)
+
     for cam_id in range(1, 5):
+
         pixels = lookup_tables[cam_id]["pixels"]
         valid = lookup_tables[cam_id]["valid"]
         mask = foreground_masks[cam_id]
-        #print(np.unique(mask))
-
-        #print(pixels.shape, valid.shape, mask.shape)
-        #print(f"Cam{cam_id} valid projections:", np.sum(valid))
-        
-
-        cam_visible = np.zeros(len(voxels), dtype=bool)
-
-        #print(f"Cam{cam_id} foreground hits:", np.sum(cam_visible))
 
         valid_indices = np.where(valid)[0]
         px = pixels[valid_indices]
 
-        #cam_visible[valid_indices] = (mask[px[:, 1], px[:, 0]] == 255)
-        cam_visible[valid_indices] = mask[px[:, 1], px[:, 0]] > 0
+        visible = mask[px[:, 1], px[:, 0]] > 0
 
-        voxel_on &= cam_visible
-        #voxel_on = cam_visible
-        # break
+        votes[valid_indices] += visible.astype(int)
+
+    voxel_on = votes >= 3  
 
     return voxels[voxel_on]
 
@@ -161,8 +139,6 @@ if __name__ == "__main__":
     for cam_id in range(1, 5):
         valid = lookup_tables[cam_id]["valid"]
         print(f"Cam{cam_id} valid projections:", np.sum(valid))
-
-
     
     #can change the folder name if needed for different versions of masks
     mask_folder = "data/cam1/foreground_masks_auto"
@@ -179,3 +155,5 @@ if __name__ == "__main__":
 
         print(frame_name, "active voxels:", len(active_voxels))
         #engine_voxels = world_to_engine(active_voxels)
+
+
