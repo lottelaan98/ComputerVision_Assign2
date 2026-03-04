@@ -1,17 +1,11 @@
 """
-CHOICE 6 (5 pts) — Speed-ups via Parallelization + a faster indexing trick
+CHOICE 6 — Speed-ups via parallelization + a faster indexing trick
 
-This file gives you drop-in utilities to speed up THREE places:
+This file gives you drop-in utilities to speed up 3 places:
 1) Lookup-table creation: build per-camera projection tables in parallel (ProcessPoolExecutor)
 2) Background subtraction: process cam1..cam4 in parallel (ProcessPoolExecutor)
 3) Voxel reconstruction (per frame): faster mask lookup using 1D flattened indexing
 
-No built-in background subtraction functions are used.
-Parallelization is used (eligible for Choice 6).
-
-How to use:
-- Put this as e.g. speedups_choice6.py
-- Run the "__main__" section OR import the functions into your pipeline.
 """
 
 import os
@@ -34,7 +28,6 @@ def load_camera_parameters(xml_path: str):
     t = fs.getNode("translation_vector").mat()
     fs.release()
 
-    # If your calibration stored translation in mm, convert to meters:
     t = t / 1000.0
 
     rvec, _ = cv2.Rodrigues(R)
@@ -42,7 +35,7 @@ def load_camera_parameters(xml_path: str):
 
 
 # ============================================================
-#  PART A — Parallel lookup-table building (per camera)
+#  Parallel lookup-table building 
 # ============================================================
 
 def _build_lookup_for_cam(cam_id: int, voxels: np.ndarray) -> Tuple[int, Dict[str, np.ndarray], Tuple[int, int]]:
@@ -65,7 +58,7 @@ def _build_lookup_for_cam(cam_id: int, voxels: np.ndarray) -> Tuple[int, Dict[st
     imgpts, _ = cv2.projectPoints(voxels, rvec, tvec, K, d)
     imgpts = imgpts.reshape(-1, 2)
 
-    # Depth (occlusion reasoning later, also useful to filter behind-camera points)
+    # Depth 
     Xc = voxels @ R.T + tvec.reshape(1, 3)
     depth = Xc[:, 2].astype(np.float32)
 
@@ -78,14 +71,14 @@ def _build_lookup_for_cam(cam_id: int, voxels: np.ndarray) -> Tuple[int, Dict[st
     )
     valid = in_front & in_image
 
-    # SPEED TRICK for reconstruction:
+    # speed for reconstruction:
     # Precompute a 1D linear pixel index pid = v*w + u so we can do mask_flat[pid]
     pid = (pixels[:, 1].astype(np.int64) * w + pixels[:, 0].astype(np.int64))
 
     lookup = {
         "pixels": pixels,     # (N,2)
         "valid": valid,       # (N,)
-        "pid": pid,           # (N,) linear pixel index (only meaningful when valid=True)
+        "pid": pid,           # (N,) 
         "depth": depth,       # (N,)
         "w": np.int32(w),
         "h": np.int32(h),
@@ -96,7 +89,7 @@ def _build_lookup_for_cam(cam_id: int, voxels: np.ndarray) -> Tuple[int, Dict[st
 def parallel_build_all_lookup_tables(voxels: np.ndarray, cam_ids=(1, 2, 3, 4), max_workers: int = 4):
     """
     Builds lookup tables for all cams in parallel.
-    Returns: lookup_tables dict and image_shape (h,w) (assumes all cams same size).
+    Returns: lookup_tables dict and image_shape (h,w) 
     """
     lookup_tables: Dict[int, Dict[str, np.ndarray]] = {}
     image_shape = None
@@ -113,7 +106,7 @@ def parallel_build_all_lookup_tables(voxels: np.ndarray, cam_ids=(1, 2, 3, 4), m
 
 
 # ============================================================
-#  PART B — Parallel background subtraction (per camera)
+#  Parallel background subtraction
 # ============================================================
 
 def create_background_average_hsv(video_path: str, num_frames: int = 50) -> np.ndarray:
@@ -214,7 +207,7 @@ def parallel_background_subtraction_all_cams(num_bg_frames=50,
 
 
 # ============================================================
-#  PART C — Faster voxel reconstruction per frame (1D mask indexing)
+#  Faster voxel reconstruction per frame, 1D mask indexing
 # ============================================================
 
 def load_masks_for_frame(frame_name: str, folder_name="foreground_masks_fast") -> Dict[int, np.ndarray]:
@@ -276,7 +269,7 @@ def create_voxel_grid():
 
 
 if __name__ == "__main__":
-    # 1) PARALLEL background subtraction (per camera)
+    # parallel background subtraction (per camera)
     # Comment out if you already produced masks.
     parallel_background_subtraction_all_cams(
         num_bg_frames=50,
@@ -285,12 +278,12 @@ if __name__ == "__main__":
         max_workers=4
     )
 
-    # 2) Build voxel grid + PARALLEL lookup tables (per camera)
+    # Build voxel grid + parallel lookup tables (per camera)
     voxels = create_voxel_grid()
     lookup_tables, image_shape = parallel_build_all_lookup_tables(voxels, max_workers=4)
     print("[lookup] all cameras done. image_shape=", image_shape)
 
-    # 3) Test fast reconstruction for a few frames
+    # Test fast reconstruction for a few frames
     mask_folder = "data/cam1/foreground_masks_fast"
     frame_files = sorted([f for f in os.listdir(mask_folder) if f.startswith("frame_") and f.endswith(".png")])
 
